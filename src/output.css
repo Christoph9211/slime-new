@@ -51,7 +51,6 @@
     --default-mono-font-variation-settings: var(
       --font-mono--font-variation-settings
     );
-  }
 }
 @layer base {
   *, ::after, ::before, ::backdrop, ::file-selector-button {
@@ -62,6 +61,7 @@
   }
   html, :host {
     line-height: 1.5;
+    text-size-adjust: 100%;
     -webkit-text-size-adjust: 100%;
     tab-size: 4;
     font-family: var( --default-font-family, ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji" );
@@ -1905,7 +1905,7 @@
     outline-style: solid;
   }
   .\[default\:\\u202F\$\{N\(\`\$\{u\}\`\)\}\] {
-    default: \u202F${N(`${u}`)};
+    --default: \u202F${N(`${u}`)};
   }
   .backface-hidden {
     backface-visibility: hidden;
@@ -2313,4 +2313,5 @@
   to {
     transform: rotate(360deg);
   }
+}
 }
