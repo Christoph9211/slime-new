@@ -1,5 +1,8 @@
-<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;">
+<!DOCTYPE html>
+<html lang="en">
+<head>
     <meta charset="UTF-8">
+    
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Slime Mold Simulation</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -78,7 +81,7 @@
                 
                 <div class="flex flex-wrap justify-center gap-3 mt-4">
                     <button id="startBtn" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-opacity-90 transition">Start</button>
-                    <button id="pauseBtn" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-opacity-90 transition" disabled="">Pause</button>
+                    <button id="pauseBtn" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-opacity-90 transition" disabled>Pause</button>
                     <button id="resetBtn" class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-opacity-90 transition">Reset</button>
                     <button id="resourceBtn" class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-opacity-90 transition">Add Resources</button>
                     <button id="wallBtn" class="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-opacity-90 transition">Add Walls</button>
@@ -180,8 +183,8 @@
             diffusionRate: 0.1,
             particleCount: 5000,
             sensorAngle: 45 * Math.PI / 180, // Convert to radians
-            sensorDistance: 16,
-            particleSpeed: 2,
+            sensorDistance: 9,
+            particleSpeed: 1,
             resourceRadius: 20,
             sourceX: null,
             sourceY: null
@@ -983,7 +986,7 @@
                     document.exitFullscreen();
                 }
             });
-
+            
             // Initial draw
             draw();
             
@@ -994,6 +997,5 @@
         // Start initialization when page loads
         window.addEventListener('load', init);
     </script>
-
-
-</body></html>
+</body>
+</html>
