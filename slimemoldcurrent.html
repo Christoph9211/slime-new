@@ -1,0 +1,999 @@
+<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slime Mold Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE',
+                        slime: {
+                            light: 'rgba(93, 92, 222, 0.8)',
+                            dark: 'rgba(135, 134, 255, 0.8)'
+                        },
+                        resource: {
+                            light: '#FF6B6B',
+                            dark: '#FF9F9F'
+                        },
+                        trail: {
+                            light: 'rgba(93, 92, 222, 0.3)',
+                            dark: 'rgba(135, 134, 255, 0.4)'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        canvas {
+            touch-action: none;
+        }
+        
+        .dark .slider::-webkit-slider-thumb {
+            background: #5D5CDE;
+        }
+        
+        .dark .slider::-moz-range-thumb {
+            background: #5D5CDE;
+        }
+        
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #5D5CDE;
+            cursor: pointer;
+        }
+        
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #5D5CDE;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-white dark:bg-[#181818] text-gray-800 dark:text-gray-200 min-h-screen flex flex-col">
+    <div class="container mx-auto px-4 py-8 flex flex-col flex-grow">
+        <h1 class="text-3xl font-bold text-primary text-center mb-4">Slime Mold Simulation</h1>
+        <p class="text-center mb-6">Watch as the slime mold finds efficient paths to resources</p>
+        
+        <div class="flex flex-col md:flex-row gap-6">
+            <div class="flex-grow flex flex-col items-center">
+                <div class="relative w-full max-w-3xl border-2 border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+                    <canvas id="simulationCanvas" class="w-full h-auto aspect-[4/3] bg-gray-100 dark:bg-gray-900"></canvas>
+                    <div id="loading" class="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-gray-900/80">
+                        <div class="flex flex-col items-center">
+                            <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                            <p class="mt-2">Initializing simulation...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex flex-wrap justify-center gap-3 mt-4">
+                    <button id="startBtn" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-opacity-90 transition">Start</button>
+                    <button id="pauseBtn" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-opacity-90 transition" disabled="">Pause</button>
+                    <button id="resetBtn" class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-opacity-90 transition">Reset</button>
+                    <button id="resourceBtn" class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-opacity-90 transition">Add Resources</button>
+                    <button id="wallBtn" class="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-opacity-90 transition">Add Walls</button>
+                    <button id="eraseBtn" class="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-opacity-90 transition">Erase Walls</button>
+                    <button id="fullscreenBtn" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-opacity-90 transition">Fullscreen</button>
+                </div>
+            </div>
+            
+            <div class="w-full md:w-80 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4">Simulation Controls</h2>
+                
+                <div class="mb-4">
+                    <label for="decaySlider" class="block mb-2">Trail Decay Rate: <span id="decayValue">0.05</span></label>
+                    <input type="range" id="decaySlider" min="0.01" max="0.20" step="0.01" value="0.05" class="slider w-full h-2 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                </div>
+                
+                <div class="mb-4">
+                    <label for="diffusionSlider" class="block mb-2">Diffusion Rate: <span id="diffusionValue">0.1</span></label>
+                    <input type="range" id="diffusionSlider" min="0.05" max="0.4" step="0.05" value="0.1" class="slider w-full h-2 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                </div>
+                
+                <div class="mb-4">
+                    <label for="particleCountSlider" class="block mb-2">Particle Count: <span id="particleCountValue">5000</span></label>
+                    <input type="range" id="particleCountSlider" min="1000" max="15000" step="1000" value="5000" class="slider w-full h-2 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                </div>
+                
+                <div class="mb-4">
+                    <label for="sensorAngleSlider" class="block mb-2">Sensor Angle: <span id="sensorAngleValue">45°</span></label>
+                    <input type="range" id="sensorAngleSlider" min="15" max="90" step="5" value="45" class="slider w-full h-2 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                </div>
+                
+                <div class="mt-6">
+                    <h3 class="font-semibold mb-2">How It Works</h3>
+                    <p class="text-sm">Slime molds are remarkable organisms that can find optimal paths between food sources without a brain. This simulation models their behavior using agents that:</p>
+                    <ul class="text-sm list-disc pl-5 mt-2">
+                        <li>Deposit pheromone trails</li>
+                        <li>Sense and follow higher concentrations</li>
+                        <li>Create reinforced pathways over time</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Set up dark mode detection
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+        
+        // Simulation code
+        const canvas = document.getElementById('simulationCanvas');
+        const ctx = canvas.getContext('2d');
+        const loadingElement = document.getElementById('loading');
+        
+        // Buttons and controls
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const resourceBtn = document.getElementById('resourceBtn');
+        
+        const decaySlider = document.getElementById('decaySlider');
+        const diffusionSlider = document.getElementById('diffusionSlider');
+        const particleCountSlider = document.getElementById('particleCountSlider');
+        const sensorAngleSlider = document.getElementById('sensorAngleSlider');
+        
+        const decayValue = document.getElementById('decayValue');
+        const diffusionValue = document.getElementById('diffusionValue');
+        const particleCountValue = document.getElementById('particleCountValue');
+        const sensorAngleValue = document.getElementById('sensorAngleValue');
+        
+        // Simulation parameters
+        let width, height;
+        let trailMap;
+        let resources = [];
+        let walls = [];
+        let particles = [];
+        let isRunning = false;
+        let isAddingResources = false;
+        let isAddingWalls = false;
+        let isErasing = false;
+        let wallSize = 15;
+        let isDragging = false;
+        let lastWallX = null;
+        let lastWallY = null;
+        let animationId = null;
+        
+        // Settings controlled by sliders
+        let settings = {
+            decayRate: 0.05,
+            diffusionRate: 0.1,
+            particleCount: 5000,
+            sensorAngle: 45 * Math.PI / 180, // Convert to radians
+            sensorDistance: 16,
+            particleSpeed: 2,
+            resourceRadius: 20,
+            sourceX: null,
+            sourceY: null
+        };
+        
+        // Initialize canvas and simulation
+        function initCanvas() {
+            // Set canvas size based on container
+            const container = canvas.parentElement;
+            const containerWidth = container.clientWidth;
+            const aspectRatio = 4/3;
+            const containerHeight = containerWidth / aspectRatio;
+            
+            // Set display size (css pixels)
+            canvas.style.width = containerWidth + 'px';
+            canvas.style.height = containerHeight + 'px';
+            
+            // Set actual size in memory (scaled for high DPI)
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = containerWidth * dpr;
+            canvas.height = containerHeight * dpr;
+            
+            // Scale context to match DPI
+            ctx.scale(dpr, dpr);
+            
+            // Update simulation dimensions
+            width = containerWidth;
+            height = containerHeight;
+            
+            // Set source position in the center
+            settings.sourceX = Math.floor(width / 2);
+            settings.sourceY = Math.floor(height / 2);
+        }
+        
+        // Initialize the trail map array
+        function initTrailMap() {
+            trailMap = new Float32Array(width * height);
+        }
+        
+        // Create particles at the source
+        function createParticles() {
+            particles = [];
+            for (let i = 0; i < settings.particleCount; i++) {
+                particles.push({
+                    x: settings.sourceX,
+                    y: settings.sourceY,
+                    angle: Math.random() * Math.PI * 2,
+                    foundResource: false,
+                    targetX: null,
+                    targetY: null
+                });
+            }
+        }
+        
+        // Draw everything to the canvas
+        function draw() {
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+            
+            // Create image data to visualize the trail map
+            const imageData = ctx.createImageData(width, height);
+            const isDarkMode = document.documentElement.classList.contains('dark');
+            
+            // Draw the trails
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const i = y * width + x;
+                    const t = Math.min(1, trailMap[i]);
+                    
+                    // RGBA
+                    const idx = i * 4;
+                    
+                    if (isDarkMode) {
+                        // Dark mode trail coloring
+                        imageData.data[idx] = 135 * t; // R
+                        imageData.data[idx + 1] = 134 * t; // G
+                        imageData.data[idx + 2] = 255 * t; // B
+                    } else {
+                        // Light mode trail coloring
+                        imageData.data[idx] = 93 * t; // R
+                        imageData.data[idx + 1] = 92 * t; // G
+                        imageData.data[idx + 2] = 222 * t; // B
+                    }
+                    
+                    imageData.data[idx + 3] = t * 255; // Alpha
+                }
+            }
+            
+            ctx.putImageData(imageData, 0, 0);
+            
+            // Draw walls
+            const wallColor = isDarkMode ? '#444444' : '#333333';
+            const wallBorderColor = isDarkMode ? '#666666' : '#555555';
+            
+            for (const wall of walls) {
+                ctx.beginPath();
+                ctx.rect(wall.x - wallSize/2, wall.y - wallSize/2, wallSize, wallSize);
+                ctx.fillStyle = wallColor;
+                ctx.fill();
+                ctx.strokeStyle = wallBorderColor;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+            
+            // Draw resources
+            resources.forEach(resource => {
+                // Draw resource glow
+                const gradient = ctx.createRadialGradient(
+                    resource.x, resource.y, 5,
+                    resource.x, resource.y, settings.resourceRadius * 2
+                );
+                gradient.addColorStop(0, isDarkMode ? 'rgba(255, 159, 159, 0.8)' : 'rgba(255, 107, 107, 0.8)');
+                gradient.addColorStop(1, 'rgba(255, 107, 107, 0)');
+                
+                ctx.beginPath();
+                ctx.arc(resource.x, resource.y, settings.resourceRadius * 2, 0, Math.PI * 2);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                
+                // Draw resource
+                ctx.beginPath();
+                ctx.arc(resource.x, resource.y, settings.resourceRadius, 0, Math.PI * 2);
+                ctx.fillStyle = isDarkMode ? '#FF9F9F' : '#FF6B6B';
+                ctx.fill();
+                ctx.strokeStyle = isDarkMode ? '#FFD1D1' : '#FF3333';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+            
+            // Draw source
+            ctx.beginPath();
+            ctx.arc(settings.sourceX, settings.sourceY, 10, 0, Math.PI * 2);
+            ctx.fillStyle = isDarkMode ? '#8786FF' : '#5D5CDE';
+            ctx.fill();
+            ctx.strokeStyle = isDarkMode ? '#CECDFFD0' : '#3A39AD';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+        
+        // Update the simulation
+        function update() {
+            // Diffuse the trails
+            diffuseTrails();
+            
+            // Decay the trails
+            decayTrails();
+            
+            // Move particles
+            moveParticles();
+        }
+        
+        // Diffuse the trail map
+        function diffuseTrails() {
+            const diffusionKernel = [
+                0.05, 0.1, 0.05,
+                0.1, 0.4, 0.1,
+                0.05, 0.1, 0.05
+            ];
+            
+            const newTrailMap = new Float32Array(width * height);
+            
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    let sum = 0;
+                    let kernelIndex = 0;
+                    
+                    for (let ky = -1; ky <= 1; ky++) {
+                        for (let kx = -1; kx <= 1; kx++) {
+                            const idx = (y + ky) * width + (x + kx);
+                            sum += trailMap[idx] * diffusionKernel[kernelIndex++];
+                        }
+                    }
+                    
+                    newTrailMap[y * width + x] = sum * settings.diffusionRate + 
+                                               trailMap[y * width + x] * (1 - settings.diffusionRate);
+                }
+            }
+            
+            trailMap = newTrailMap;
+        }
+        
+        // Decay the trails
+        function decayTrails() {
+            for (let i = 0; i < trailMap.length; i++) {
+                trailMap[i] = Math.max(0, trailMap[i] - settings.decayRate * 0.01);
+            }
+        }
+        
+        // Check if a point collides with a wall
+        function checkWallCollision(x, y) {
+            for (const wall of walls) {
+                if (Math.abs(x - wall.x) < wallSize/2 && Math.abs(y - wall.y) < wallSize/2) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // Move and update particles
+        function moveParticles() {
+            for (let i = 0; i < particles.length; i++) {
+                const p = particles[i];
+                
+                // Check if particle has a found-resource state
+                if (!p.foundResource) {
+                    // Regular exploration behavior
+                    
+                    // Check if close to any resource to be attracted to it
+                    let isNearResource = false;
+                    let nearestResource = null;
+                    let minDist = Infinity;
+                    
+                    for (const resource of resources) {
+                        const dx = resource.x - p.x;
+                        const dy = resource.y - p.y;
+                        const distSquared = dx * dx + dy * dy;
+                        
+                        // If within resource attraction radius, be drawn toward it
+                        if (distSquared < settings.resourceRadius * 10 * settings.resourceRadius * 10) {
+                            isNearResource = true;
+                            if (distSquared < minDist) {
+                                minDist = distSquared;
+                                nearestResource = resource;
+                            }
+                        }
+                    }
+                    
+                    if (isNearResource && nearestResource && Math.random() < 0.3) {
+                        // If near a resource, randomly orient toward it with higher probability
+                        const targetAngle = Math.atan2(nearestResource.y - p.y, nearestResource.x - p.x);
+                        p.angle = p.angle * 0.7 + targetAngle * 0.3;
+                    } else {
+                        // Normal sensing behavior
+                        const angleLeft = p.angle - settings.sensorAngle;
+                        const angleRight = p.angle + settings.sensorAngle;
+                        const angleForward = p.angle;
+                        
+                        const sensorLeft = sense(p.x, p.y, angleLeft);
+                        const sensorRight = sense(p.x, p.y, angleRight);
+                        const sensorForward = sense(p.x, p.y, angleForward);
+                        
+                        // Decide new direction
+                        if (sensorForward > sensorLeft && sensorForward > sensorRight) {
+                            // continue forward
+                        } else if (sensorForward < sensorLeft && sensorForward < sensorRight) {
+                            // random turn if both sides are equally strong
+                            p.angle += (Math.random() - 0.5) * Math.PI/4;
+                        } else if (sensorLeft > sensorRight) {
+                            // turn left
+                            p.angle -= Math.random() * 0.3;
+                        } else if (sensorRight > sensorLeft) {
+                            // turn right
+                            p.angle += Math.random() * 0.3;
+                        }
+                        
+                        // Add some randomness to the angle
+                        p.angle += (Math.random() - 0.5) * 0.2;
+                    }
+                    
+                    // Move particle
+                    const speed = isNearResource ? settings.particleSpeed * 1.2 : settings.particleSpeed;
+                    const newX = p.x + Math.cos(p.angle) * speed;
+                    const newY = p.y + Math.sin(p.angle) * speed;
+                    
+                    // Check for wall collision
+                    const hitWall = checkWallCollision(newX, newY);
+                    
+                    // Check if new position is within bounds and not hitting a wall
+                    if (newX >= 0 && newX < width && newY >= 0 && newY < height && !hitWall) {
+                        p.x = newX;
+                        p.y = newY;
+                    } else {
+                        // We hit something - either the edge or a wall
+                        
+                        // Turn in a random new direction away from the obstacle
+                        if (hitWall) {
+                            // For walls, turn more sharply away
+                            const fromWallAngle = Math.atan2(p.y - newY, p.x - newX);
+                            p.angle = fromWallAngle + (Math.random() - 0.5) * Math.PI/2;
+                        } else {
+                            // For boundaries, just pick a new random direction
+                            p.angle = Math.random() * Math.PI * 2;
+                        }
+                        
+                        // 15% chance to go back to source when hitting obstacle
+                        if (Math.random() < 0.15) {
+                            p.x = settings.sourceX;
+                            p.y = settings.sourceY;
+                        }
+                    }
+                    
+                    // Leave trail (weaker during exploration)
+                    const idx = Math.floor(p.y) * width + Math.floor(p.x);
+                    if (idx >= 0 && idx < trailMap.length) {
+                        trailMap[idx] += 0.05;
+                        
+                        // Cap the trail intensity
+                        if (trailMap[idx] > 1) trailMap[idx] = 1;
+                    }
+                    
+                    // Check if particle reached a resource
+                    for (const resource of resources) {
+                        const dx = p.x - resource.x;
+                        const dy = p.y - resource.y;
+                        const distSquared = dx * dx + dy * dy;
+                        
+                        if (distSquared < settings.resourceRadius * settings.resourceRadius) {
+                            // Mark particle as returning to source with resource
+                            p.foundResource = true;
+                            p.targetX = settings.sourceX;
+                            p.targetY = settings.sourceY;
+                            p.angle = Math.atan2(settings.sourceY - p.y, settings.sourceX - p.x);
+                            break;
+                        }
+                    }
+                } else {
+                    // Behavior when returning to source with a found resource
+                    
+                    // Try to avoid walls by looking ahead
+                    let adjustedAngle = p.angle;
+                    
+                    // Check if there's a wall directly ahead
+                    const lookAheadDist = settings.sensorDistance;
+                    const aheadX = p.x + Math.cos(p.angle) * lookAheadDist;
+                    const aheadY = p.y + Math.sin(p.angle) * lookAheadDist;
+                    
+                    if (checkWallCollision(aheadX, aheadY)) {
+                        // Try different angles to find a clear path around the wall
+                        const testAngles = [-Math.PI/4, Math.PI/4, -Math.PI/2, Math.PI/2];
+                        let foundPath = false;
+                        
+                        for (const angleOffset of testAngles) {
+                            const testAngle = p.angle + angleOffset;
+                            const testX = p.x + Math.cos(testAngle) * lookAheadDist;
+                            const testY = p.y + Math.sin(testAngle) * lookAheadDist;
+                            
+                            if (!checkWallCollision(testX, testY)) {
+                                adjustedAngle = testAngle;
+                                foundPath = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!foundPath) {
+                            // If no clear path, turn more randomly
+                            adjustedAngle = p.angle + (Math.random() - 0.5) * Math.PI;
+                        }
+                    }
+                    
+                    // Direct angle toward the source/target, with obstacle avoidance
+                    const targetAngle = Math.atan2(p.targetY - p.y, p.targetX - p.x);
+                    p.angle = p.angle * 0.6 + adjustedAngle * 0.2 + targetAngle * 0.2; // Weighted blend
+                    
+                    // Move toward the target faster
+                    const newX = p.x + Math.cos(p.angle) * settings.particleSpeed * 1.5;
+                    const newY = p.y + Math.sin(p.angle) * settings.particleSpeed * 1.5;
+                    
+                    // Check if within bounds and not hitting a wall
+                    if (newX >= 0 && newX < width && newY >= 0 && newY < height && !checkWallCollision(newX, newY)) {
+                        p.x = newX;
+                        p.y = newY;
+                    } else {
+                        // We hit something
+                        if (checkWallCollision(newX, newY)) {
+                            // Try to navigate around the wall
+                            const fromWallAngle = Math.atan2(p.y - newY, p.x - newX);
+                            p.angle = fromWallAngle + (Math.random() - 0.5) * Math.PI/2;
+                        } else {
+                            // Hit the boundary, reset
+                            p.foundResource = false;
+                            p.x = settings.sourceX;
+                            p.y = settings.sourceY;
+                            p.angle = Math.random() * Math.PI * 2;
+                        }
+                    }
+                    
+                    // Leave stronger trail when returning with resource
+                    const idx = Math.floor(p.y) * width + Math.floor(p.x);
+                    if (idx >= 0 && idx < trailMap.length) {
+                        trailMap[idx] += 0.2; // Much stronger trail
+                        
+                        // Cap the trail intensity
+                        if (trailMap[idx] > 1) trailMap[idx] = 1;
+                    }
+                    
+                    // Check if reached the source
+                    const dx = p.x - settings.sourceX;
+                    const dy = p.y - settings.sourceY;
+                    const distSquared = dx * dx + dy * dy;
+                    
+                    if (distSquared < 10 * 10) {
+                        // Reset to explore again
+                        p.foundResource = false;
+                        
+                        // Random new direction to explore again
+                        p.angle = Math.random() * Math.PI * 2;
+                        
+                        // Small chance to be attracted to resources
+                        if (resources.length > 0 && Math.random() < 0.3) {
+                            // Pick a random resource to target
+                            const randResource = resources[Math.floor(Math.random() * resources.length)];
+                            p.angle = Math.atan2(randResource.y - p.y, randResource.x - p.x);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Sense the trail concentration in a direction
+        function sense(x, y, angle) {
+            const sensorX = x + Math.cos(angle) * settings.sensorDistance;
+            const sensorY = y + Math.sin(angle) * settings.sensorDistance;
+            
+            // Check bounds
+            if (sensorX < 0 || sensorX >= width || sensorY < 0 || sensorY >= height) {
+                return 0;
+            }
+            
+            const idx = Math.floor(sensorY) * width + Math.floor(sensorX);
+            return trailMap[idx];
+        }
+        
+        // Animation loop
+        function animate() {
+            if (isRunning) {
+                update();
+                draw();
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+        
+        // Handle canvas click for adding resources
+        function handleCanvasClick(e) {
+            if (!isAddingResources) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / (rect.width / canvas.width);
+            const y = (e.clientY - rect.top) / (rect.height / canvas.height);
+            
+            resources.push({ x, y });
+            draw(); // Redraw to show the new resource
+        }
+        
+        // Check if a point is inside a wall
+        function isPointInWall(x, y) {
+            for (const wall of walls) {
+                if (Math.abs(x - wall.x) <= wallSize/2 && Math.abs(y - wall.y) <= wallSize/2) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // Check if a point is near the source or resources (to prevent placing walls on them)
+        function isPointNearImportantFeature(x, y) {
+            // Check source
+            const dxSource = x - settings.sourceX;
+            const dySource = y - settings.sourceY;
+            if (dxSource * dxSource + dySource * dySource < 20 * 20) {
+                return true;
+            }
+            
+            // Check resources
+            for (const resource of resources) {
+                const dx = x - resource.x;
+                const dy = y - resource.y;
+                if (dx * dx + dy * dy < settings.resourceRadius * settings.resourceRadius) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        // Find an existing wall at the given coordinates
+        function findWallAt(x, y) {
+            for (let i = 0; i < walls.length; i++) {
+                const wall = walls[i];
+                if (Math.abs(x - wall.x) <= wallSize/2 && Math.abs(y - wall.y) <= wallSize/2) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+        
+        // Handle mouse down for wall creation/erasure
+        function handleMouseDown(e) {
+            if (!isAddingWalls && !isErasing) return;
+            
+            isDragging = true;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / (rect.width / canvas.width);
+            const y = (e.clientY - rect.top) / (rect.height / canvas.height);
+            
+            lastWallX = x;
+            lastWallY = y;
+            
+            // Don't add walls on top of important features
+            if (isPointNearImportantFeature(x, y)) return;
+            
+            if (isAddingWalls) {
+                // Only add if not already a wall here
+                if (!isPointInWall(x, y)) {
+                    walls.push({ x, y });
+                    draw();
+                }
+            } else if (isErasing) {
+                // Find and remove wall
+                const wallIndex = findWallAt(x, y);
+                if (wallIndex !== -1) {
+                    walls.splice(wallIndex, 1);
+                    draw();
+                }
+            }
+        }
+        
+        // Handle mouse move for wall creation/erasure
+        function handleMouseMove(e) {
+            if (!isDragging) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / (rect.width / canvas.width);
+            const y = (e.clientY - rect.top) / (rect.height / canvas.height);
+            
+            // Skip if too close to the last wall (to avoid excessive walls)
+            if (lastWallX !== null && lastWallY !== null) {
+                const dx = x - lastWallX;
+                const dy = y - lastWallY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < wallSize * 0.5) return;
+            }
+            
+            lastWallX = x;
+            lastWallY = y;
+            
+            // Don't add walls on top of important features
+            if (isPointNearImportantFeature(x, y)) return;
+            
+            if (isAddingWalls) {
+                // Only add if not already a wall here
+                if (!isPointInWall(x, y)) {
+                    walls.push({ x, y });
+                    draw();
+                }
+            } else if (isErasing) {
+                // Find and remove wall
+                const wallIndex = findWallAt(x, y);
+                if (wallIndex !== -1) {
+                    walls.splice(wallIndex, 1);
+                    draw();
+                }
+            }
+        }
+        
+        // Handle mouse up to end wall creation/erasure
+        function handleMouseUp() {
+            isDragging = false;
+            lastWallX = null;
+            lastWallY = null;
+        }
+        
+        // Initialize and start the simulation
+        function init() {
+            // Set up canvas
+            initCanvas();
+            initTrailMap();
+            createParticles();
+            
+            // Add event listeners for buttons
+            startBtn.addEventListener('click', () => {
+                if (!isRunning) {
+                    isRunning = true;
+                    startBtn.disabled = true;
+                    pauseBtn.disabled = false;
+                    animate();
+                }
+            });
+            
+            pauseBtn.addEventListener('click', () => {
+                isRunning = false;
+                startBtn.disabled = false;
+                pauseBtn.disabled = true;
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                    animationId = null;
+                }
+            });
+            
+            resetBtn.addEventListener('click', () => {
+                // Stop animation if running
+                isRunning = false;
+                startBtn.disabled = false;
+                pauseBtn.disabled = true;
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                    animationId = null;
+                }
+                
+                // Reset simulation
+                resources = [];
+                walls = [];
+                initTrailMap();
+                settings.sourceX = Math.floor(width / 2);
+                settings.sourceY = Math.floor(height / 2);
+                createParticles();
+                draw();
+                
+                // Reset all tool buttons
+                isAddingResources = false;
+                isAddingWalls = false;
+                isErasing = false;
+                resourceBtn.textContent = 'Add Resources';
+                resourceBtn.classList.remove('bg-yellow-500');
+                resourceBtn.classList.add('bg-green-500');
+                wallBtn.textContent = 'Add Walls';
+                wallBtn.classList.remove('bg-yellow-700');
+                wallBtn.classList.add('bg-gray-700');
+                eraseBtn.textContent = 'Erase Walls';
+                eraseBtn.classList.remove('bg-yellow-500');
+                eraseBtn.classList.add('bg-orange-500');
+                canvas.style.cursor = 'default';
+            });
+            
+            resourceBtn.addEventListener('click', () => {
+                // Deactivate other tools
+                isAddingWalls = false;
+                isErasing = false;
+                wallBtn.textContent = 'Add Walls';
+                wallBtn.classList.remove('bg-yellow-700');
+                wallBtn.classList.add('bg-gray-700');
+                eraseBtn.textContent = 'Erase Walls';
+                eraseBtn.classList.remove('bg-yellow-500');
+                eraseBtn.classList.add('bg-orange-500');
+                
+                // Toggle resource placement
+                isAddingResources = !isAddingResources;
+                resourceBtn.textContent = isAddingResources ? 'Placing Resources...' : 'Add Resources';
+                resourceBtn.classList.toggle('bg-yellow-500', isAddingResources);
+                resourceBtn.classList.toggle('bg-green-500', !isAddingResources);
+                canvas.style.cursor = isAddingResources ? 'crosshair' : 'default';
+            });
+            
+            // Add wall button event listener
+            const wallBtn = document.getElementById('wallBtn');
+            wallBtn.addEventListener('click', () => {
+                // Deactivate other tools
+                isAddingResources = false;
+                isErasing = false;
+                resourceBtn.textContent = 'Add Resources';
+                resourceBtn.classList.remove('bg-yellow-500');
+                resourceBtn.classList.add('bg-green-500');
+                eraseBtn.textContent = 'Erase Walls';
+                eraseBtn.classList.remove('bg-yellow-500');
+                eraseBtn.classList.add('bg-orange-500');
+                
+                // Toggle wall placement
+                isAddingWalls = !isAddingWalls;
+                wallBtn.textContent = isAddingWalls ? 'Placing Walls...' : 'Add Walls';
+                wallBtn.classList.toggle('bg-yellow-700', isAddingWalls);
+                wallBtn.classList.toggle('bg-gray-700', !isAddingWalls);
+                canvas.style.cursor = isAddingWalls ? 'crosshair' : 'default';
+            });
+            
+            // Add erase button event listener
+            const eraseBtn = document.getElementById('eraseBtn');
+            eraseBtn.addEventListener('click', () => {
+                // Deactivate other tools
+                isAddingResources = false;
+                isAddingWalls = false;
+                resourceBtn.textContent = 'Add Resources';
+                resourceBtn.classList.remove('bg-yellow-500');
+                resourceBtn.classList.add('bg-green-500');
+                wallBtn.textContent = 'Add Walls';
+                wallBtn.classList.remove('bg-yellow-700');
+                wallBtn.classList.add('bg-gray-700');
+                
+                // Toggle eraser
+                isErasing = !isErasing;
+                eraseBtn.textContent = isErasing ? 'Erasing Walls...' : 'Erase Walls';
+                eraseBtn.classList.toggle('bg-yellow-500', isErasing);
+                eraseBtn.classList.toggle('bg-orange-500', !isErasing);
+                canvas.style.cursor = isErasing ? 'cell' : 'default';
+            });
+            
+            // Add event listeners for sliders
+            decaySlider.addEventListener('input', () => {
+                settings.decayRate = parseFloat(decaySlider.value);
+                decayValue.textContent = settings.decayRate.toFixed(2);
+            });
+            
+            diffusionSlider.addEventListener('input', () => {
+                settings.diffusionRate = parseFloat(diffusionSlider.value);
+                diffusionValue.textContent = settings.diffusionRate.toFixed(2);
+            });
+            
+            particleCountSlider.addEventListener('input', () => {
+                settings.particleCount = parseInt(particleCountSlider.value);
+                particleCountValue.textContent = settings.particleCount;
+                
+                // Don't recreate particles while sim is running
+                if (!isRunning) {
+                    createParticles();
+                }
+            });
+            
+            sensorAngleSlider.addEventListener('input', () => {
+                const angleDegrees = parseInt(sensorAngleSlider.value);
+                settings.sensorAngle = angleDegrees * Math.PI / 180;
+                sensorAngleValue.textContent = angleDegrees + '°';
+            });
+            
+            // Add event listeners for canvas interactions
+            canvas.addEventListener('click', handleCanvasClick);
+            canvas.addEventListener('mousedown', handleMouseDown);
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('mouseleave', handleMouseUp);
+            
+            // Touch support
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                handleMouseDown({
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+            });
+            
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                handleMouseMove({
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+            });
+            
+            canvas.addEventListener('touchend', () => {
+                handleMouseUp();
+            });
+            
+            // Add event listener for window resize
+            window.addEventListener('resize', () => {
+                // Save current running state
+                const wasRunning = isRunning;
+                
+                // Pause if running
+                if (wasRunning) {
+                    isRunning = false;
+                    if (animationId) {
+                        cancelAnimationFrame(animationId);
+                        animationId = null;
+                    }
+                }
+                
+                // Resize canvas
+                initCanvas();
+                
+                // Create new trail map at new size
+                initTrailMap();
+                
+                // Position resources proportionally to new size
+                resources = resources.map(resource => {
+                    return {
+                        x: (resource.x / canvas.width) * width,
+                        y: (resource.y / canvas.height) * height
+                    };
+                });
+                
+                // Position walls proportionally to new size
+                walls = walls.map(wall => {
+                    return {
+                        x: (wall.x / canvas.width) * width,
+                        y: (wall.y / canvas.height) * height
+                    };
+                });
+                
+                // Redraw
+                draw();
+                
+                // Resume if it was running
+                if (wasRunning) {
+                    isRunning = true;
+                    animate();
+                }
+            });
+            
+            // Fullscreen toggle functionality
+            const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+            fullscreenBtn.addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    canvas.requestFullscreen().catch(err => {
+                        alert(`Error attempting to enable fullscreen mode: ${err.message} (${err.name})`);
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            });
+
+            // Initial draw
+            draw();
+            
+            // Hide loading overlay
+            loadingElement.style.display = 'none';
+        }
+        
+        // Start initialization when page loads
+        window.addEventListener('load', init);
+    </script>
+
+
+</body></html>
