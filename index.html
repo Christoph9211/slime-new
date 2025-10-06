@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="./output.css" rel="stylesheet">
+    <!-- <link href="output.css" rel="stylesheet"> -->
     <title>Slime Mold Simulation</title>
-    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -187,6 +187,8 @@
             sensorDistance: 9,
             particleSpeed: 1,
             resourceRadius: 20,
+            pathMemoryLength: 160,
+            breadcrumbSpacing: 6,
             sourceX: null,
             sourceY: null
         };
@@ -235,7 +237,9 @@
                     angle: Math.random() * Math.PI * 2,
                     foundResource: false,
                     targetX: null,
-                    targetY: null
+                    targetY: null,
+                    pathMemory: [{ x: settings.sourceX, y: settings.sourceY }],
+                    returnIndex: null
                 });
             }
         }
@@ -389,6 +393,13 @@
             for (let i = 0; i < particles.length; i++) {
                 const p = particles[i];
                 
+                if (!Array.isArray(p.pathMemory) || p.pathMemory.length === 0) {
+                    p.pathMemory = [{ x: p.x, y: p.y }];
+                }
+                if (typeof p.returnIndex !== 'number') {
+                    p.returnIndex = null;
+                }
+                
                 // Check if particle has a found-resource state
                 if (!p.foundResource) {
                     // Regular exploration behavior
@@ -474,6 +485,17 @@
                         if (Math.random() < 0.15) {
                             p.x = settings.sourceX;
                             p.y = settings.sourceY;
+                            p.pathMemory = [{ x: p.x, y: p.y }];
+                        }
+                    }
+                    
+                    // Refresh breadcrumb trail used for homing
+                    const lastBreadcrumb = p.pathMemory[p.pathMemory.length - 1];
+                    const spacing = settings.breadcrumbSpacing;
+                    if (!lastBreadcrumb || ((p.x - lastBreadcrumb.x) * (p.x - lastBreadcrumb.x) + (p.y - lastBreadcrumb.y) * (p.y - lastBreadcrumb.y)) > spacing * spacing) {
+                        p.pathMemory.push({ x: p.x, y: p.y });
+                        if (p.pathMemory.length > settings.pathMemoryLength) {
+                            p.pathMemory.shift();
                         }
                     }
                     
@@ -498,67 +520,114 @@
                             p.targetX = settings.sourceX;
                             p.targetY = settings.sourceY;
                             p.angle = Math.atan2(settings.sourceY - p.y, settings.sourceX - p.x);
+                            p.returnIndex = p.pathMemory.length - 1;
                             break;
                         }
                     }
                 } else {
                     // Behavior when returning to source with a found resource
-                    
-                    // Try to avoid walls by looking ahead
-                    let adjustedAngle = p.angle;
-                    
-                    // Check if there's a wall directly ahead
-                    const lookAheadDist = settings.sensorDistance;
-                    const aheadX = p.x + Math.cos(p.angle) * lookAheadDist;
-                    const aheadY = p.y + Math.sin(p.angle) * lookAheadDist;
-                    
+
+                    if (!Array.isArray(p.pathMemory) || p.pathMemory.length === 0) {
+                        p.pathMemory = [{ x: p.x, y: p.y }];
+                    }
+
+                    if (typeof p.returnIndex !== 'number' || p.returnIndex === null || p.returnIndex >= p.pathMemory.length) {
+                        p.returnIndex = p.pathMemory.length - 1;
+                    }
+
+                    const homeAngle = Math.atan2(settings.sourceY - p.y, settings.sourceX - p.x);
+                    let breadcrumbAngle = null;
+                    let breadcrumbStrength = 0;
+
+                    if (p.returnIndex !== null && p.returnIndex >= 0 && p.pathMemory[p.returnIndex]) {
+                        const crumb = p.pathMemory[p.returnIndex];
+                        const dxCrumb = crumb.x - p.x;
+                        const dyCrumb = crumb.y - p.y;
+                        const crumbDistSq = dxCrumb * dxCrumb + dyCrumb * dyCrumb;
+
+                        if (crumbDistSq < settings.breadcrumbSpacing * settings.breadcrumbSpacing && p.returnIndex > 0) {
+                            p.returnIndex = Math.max(0, p.returnIndex - 1);
+                        } else if (crumbDistSq > 1) {
+                            breadcrumbAngle = Math.atan2(dyCrumb, dxCrumb);
+                            breadcrumbStrength = Math.min(1, Math.sqrt(crumbDistSq) / (settings.sensorDistance * 1.5));
+                        }
+                    }
+
+                    const preferredAngle = breadcrumbAngle !== null ? breadcrumbAngle : homeAngle;
+                    const sensorSpread = settings.sensorAngle * 0.5;
+                    const candidateAngles = [
+                        preferredAngle,
+                        preferredAngle - sensorSpread,
+                        preferredAngle + sensorSpread,
+                        homeAngle,
+                        p.angle
+                    ];
+
+                    let bestAngle = preferredAngle;
+                    let bestScore = -Infinity;
+
+                    for (const candidate of candidateAngles) {
+                        const trailStrength = sense(p.x, p.y, candidate);
+                        const homeAlignment = Math.cos(candidate - homeAngle);
+                        const breadcrumbAlignment = breadcrumbAngle !== null ? Math.cos(candidate - breadcrumbAngle) : 0;
+                        const score = trailStrength * 0.75 + homeAlignment * 0.15 + breadcrumbAlignment * 0.2 + Math.random() * 0.02;
+
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestAngle = candidate;
+                        }
+                    }
+
+                    let steeringAngle = bestAngle;
+                    const lookAheadDist = settings.sensorDistance * 1.2;
+                    const aheadX = p.x + Math.cos(steeringAngle) * lookAheadDist;
+                    const aheadY = p.y + Math.sin(steeringAngle) * lookAheadDist;
+
                     if (checkWallCollision(aheadX, aheadY)) {
-                        // Try different angles to find a clear path around the wall
-                        const testAngles = [-Math.PI/4, Math.PI/4, -Math.PI/2, Math.PI/2];
-                        let foundPath = false;
-                        
-                        for (const angleOffset of testAngles) {
-                            const testAngle = p.angle + angleOffset;
-                            const testX = p.x + Math.cos(testAngle) * lookAheadDist;
-                            const testY = p.y + Math.sin(testAngle) * lookAheadDist;
-                            
+                        const avoidanceOffsets = [
+                            sensorSpread,
+                            -sensorSpread,
+                            sensorSpread * 2,
+                            -sensorSpread * 2,
+                            Math.PI / 2,
+                            -Math.PI / 2
+                        ];
+
+                        for (const offset of avoidanceOffsets) {
+                            const candidate = steeringAngle + offset;
+                            const testX = p.x + Math.cos(candidate) * lookAheadDist;
+                            const testY = p.y + Math.sin(candidate) * lookAheadDist;
+
                             if (!checkWallCollision(testX, testY)) {
-                                adjustedAngle = testAngle;
-                                foundPath = true;
+                                steeringAngle = candidate;
                                 break;
                             }
                         }
-                        
-                        if (!foundPath) {
-                            // If no clear path, turn more randomly
-                            adjustedAngle = p.angle + (Math.random() - 0.5) * Math.PI;
-                        }
                     }
-                    
-                    // Direct angle toward the source/target, with obstacle avoidance
-                    const targetAngle = Math.atan2(p.targetY - p.y, p.targetX - p.x);
-                    p.angle = p.angle * 0.6 + adjustedAngle * 0.2 + targetAngle * 0.2; // Weighted blend
-                    
-                    // Move toward the target faster
-                    const newX = p.x + Math.cos(p.angle) * settings.particleSpeed * 1.5;
-                    const newY = p.y + Math.sin(p.angle) * settings.particleSpeed * 1.5;
-                    
-                    // Check if within bounds and not hitting a wall
+
+                    const blendFactor = 0.65;
+                    p.angle = p.angle * (1 - blendFactor) + steeringAngle * blendFactor;
+
+                    const speedBoost = breadcrumbStrength > 0.5 ? 1.35 : 1.1;
+                    const newX = p.x + Math.cos(p.angle) * settings.particleSpeed * speedBoost;
+                    const newY = p.y + Math.sin(p.angle) * settings.particleSpeed * speedBoost;
+
                     if (newX >= 0 && newX < width && newY >= 0 && newY < height && !checkWallCollision(newX, newY)) {
                         p.x = newX;
                         p.y = newY;
                     } else {
-                        // We hit something
                         if (checkWallCollision(newX, newY)) {
-                            // Try to navigate around the wall
-                            const fromWallAngle = Math.atan2(p.y - newY, p.x - newX);
-                            p.angle = fromWallAngle + (Math.random() - 0.5) * Math.PI/2;
+                            p.angle += (Math.random() > 0.5 ? 1 : -1) * Math.PI / 3;
+                            if (p.returnIndex !== null && p.returnIndex < p.pathMemory.length - 1) {
+                                p.returnIndex += 1;
+                            }
                         } else {
-                            // Hit the boundary, reset
                             p.foundResource = false;
                             p.x = settings.sourceX;
                             p.y = settings.sourceY;
                             p.angle = Math.random() * Math.PI * 2;
+                            p.pathMemory = [{ x: p.x, y: p.y }];
+                            p.returnIndex = null;
                         }
                     }
                     
@@ -579,6 +648,8 @@
                     if (distSquared < 10 * 10) {
                         // Reset to explore again
                         p.foundResource = false;
+                        p.returnIndex = null;
+                        p.pathMemory = [{ x: p.x, y: p.y }];
                         
                         // Random new direction to explore again
                         p.angle = Math.random() * Math.PI * 2;
